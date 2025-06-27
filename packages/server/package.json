@@ -1,6 +1,15 @@
 {
   "name": "server",
   "version": "0.1.0",
+  "description": "A simple Express server for the application",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node src/index.js",
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint . --ext .ts",
+    "test": "jest"
+  },
   "dependencies": {
     "express": "^5.1.0"
   },

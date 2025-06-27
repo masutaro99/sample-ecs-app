@@ -7,8 +7,8 @@ app.get("/", (request: Request, response: Response) => {
 });
 
 app
-  .listen(8080, () => {
-    console.log("Server running at PORT: ", 8080);
+  .listen(80, () => {
+    console.log("Server running at PORT: ", 80);
   })
   .on("error", (error) => {
     throw new Error(error.message);

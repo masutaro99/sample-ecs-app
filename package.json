@@ -8,8 +8,5 @@
   "workspaces": [
     "packages/iac",
     "packages/server"
-  ],
-  "devDependencies": {
-    "typescript": "^5.8.3"
-  }
+  ]
 }

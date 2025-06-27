@@ -1,10 +1,10 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
     },
     "esModuleInterop": true
-  }
+  },
+  "exclude": ["node_modules"]
 }
