@@ -9,5 +9,5 @@ new EcrStack(app, "EcrStack", {
 });
 new MainStack(app, "MainStack", {
   repositoryName: "sample-ecs-app",
-  imageTag: "v2",
+  imageTag: "v3",
 });

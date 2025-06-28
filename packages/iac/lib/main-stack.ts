@@ -101,7 +101,7 @@ export class MainStack extends cdk.Stack {
       }),
     });
     ecsContainer.addPortMappings({
-      containerPort: 8080,
+      containerPort: 80,
     });
 
     // Security Group for App
@@ -154,6 +154,8 @@ export class MainStack extends cdk.Stack {
       deregistrationDelay: cdk.Duration.seconds(90),
     });
     appTargetGroup.configureHealthCheck({
+      protocol: elbv2.Protocol.HTTP,
+      port: "80",
       path: "/",
       enabled: true,
       healthyHttpCodes: "200",
