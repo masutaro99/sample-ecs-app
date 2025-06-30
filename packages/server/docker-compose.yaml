@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_HOST: "postgres"
+      DATABASE_NAME: "postgres"
+      DATABASE_USER: "postgres"
+      DATABASE_PASSWORD: "postgres"
+  postgres:
+    image: "postgres:16.4"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "postgres"
