@@ -8,6 +8,7 @@ import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as rds from "aws-cdk-lib/aws-rds";
+import * as appsignals from "@aws-cdk/aws-applicationsignals-alpha";
 
 export interface MainStackProps extends cdk.StackProps {
   repositoryName: string;
@@ -40,6 +41,7 @@ export class MainStack extends cdk.Stack {
     // ECS Cluster
     const cluster = new ecs.Cluster(this, "EcsCluster", {
       vpc: vpc,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
     });
 
     // ECS Task Execution Role
@@ -69,8 +71,8 @@ export class MainStack extends cdk.Stack {
       this,
       "TaskDefinition",
       {
-        memoryLimitMiB: 512,
-        cpu: 256,
+        cpu: 512,
+        memoryLimitMiB: 1024,
         taskRole: taskRole,
         executionRole: taskExecutionRole,
       }
@@ -103,6 +105,23 @@ export class MainStack extends cdk.Stack {
     ecsContainer.addPortMappings({
       containerPort: 80,
     });
+
+    new appsignals.ApplicationSignalsIntegration(
+      this,
+      "ApplicationSignalsIntegration",
+      {
+        taskDefinition: taskDefinition,
+        instrumentation: {
+          sdkVersion: appsignals.NodeInstrumentationVersion.V0_6_0,
+        },
+        cloudWatchAgentSidecar: {
+          containerName: "ecs-cwagent",
+          enableLogging: true,
+          cpu: 256,
+          memoryLimitMiB: 512,
+        },
+      }
+    );
 
     // Security Group for App
     const appSg = new ec2.SecurityGroup(this, "AppSg", {
