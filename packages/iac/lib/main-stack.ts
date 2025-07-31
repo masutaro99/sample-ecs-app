@@ -8,7 +8,8 @@ import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as rds from "aws-cdk-lib/aws-rds";
-import * as appsignals from "@aws-cdk/aws-applicationsignals-alpha";
+import * as application_signals_alpha from "@aws-cdk/aws-applicationsignals-alpha";
+import * as application_signals from "aws-cdk-lib/aws-applicationsignals";
 
 export interface MainStackProps extends cdk.StackProps {
   repositoryName: string;
@@ -106,13 +107,15 @@ export class MainStack extends cdk.Stack {
       containerPort: 80,
     });
 
-    new appsignals.ApplicationSignalsIntegration(
+    new application_signals_alpha.ApplicationSignalsIntegration(
       this,
       "ApplicationSignalsIntegration",
       {
+        serviceName: "sample-ecs-app",
         taskDefinition: taskDefinition,
         instrumentation: {
-          sdkVersion: appsignals.NodeInstrumentationVersion.V0_6_0,
+          sdkVersion:
+            application_signals_alpha.NodeInstrumentationVersion.V0_6_0,
         },
         cloudWatchAgentSidecar: {
           containerName: "ecs-cwagent",
@@ -123,6 +126,64 @@ export class MainStack extends cdk.Stack {
       }
     );
 
+    // SLO for getUserAvailability - 可用性監視
+    new application_signals.CfnServiceLevelObjective(
+      this,
+      "GetUserAvailabilitySLO",
+      {
+        name: "getUserAvailability",
+        requestBasedSli: {
+          requestBasedSliMetric: {
+            keyAttributes: {
+              Environment: `ecs:${cluster.clusterName}`,
+              Name: "sample-ecs-app",
+              Type: "Service",
+            },
+            operationName: "GET /users",
+            metricType: "AVAILABILITY",
+          },
+        },
+        goal: {
+          attainmentGoal: 99.9,
+          warningThreshold: 60.0,
+          interval: {
+            rollingInterval: {
+              durationUnit: "DAY",
+              duration: 1,
+            },
+          },
+        },
+      }
+    );
+
+    // SLO for getUserLatency - レイテンシ監視
+    new application_signals.CfnServiceLevelObjective(this, "GetUserLatency", {
+      name: "getUserLatency",
+      requestBasedSli: {
+        requestBasedSliMetric: {
+          keyAttributes: {
+            Environment: `ecs:${cluster.clusterName}`,
+            Name: "sample-ecs-app",
+            Type: "Service",
+          },
+          operationName: "GET /users",
+          metricType: "LATENCY",
+        },
+        comparisonOperator: "LessThan",
+        metricThreshold: 300,
+      },
+      goal: {
+        attainmentGoal: 99.9,
+        warningThreshold: 60.0,
+        interval: {
+          rollingInterval: {
+            durationUnit: "DAY",
+            duration: 1,
+          },
+        },
+      },
+    });
+
     // Security Group for App
     const appSg = new ec2.SecurityGroup(this, "AppSg", {
       vpc: vpc,
@@ -132,6 +193,7 @@ export class MainStack extends cdk.Stack {
     // ECS Service
     const service = new ecs.FargateService(this, "Service", {
       cluster: cluster,
+      serviceName: "sample-ecs-app",
       taskDefinition: taskDefinition,
       platformVersion: ecs.FargatePlatformVersion.VERSION1_4,
       desiredCount: 1,
