@@ -17,8 +17,18 @@ export interface MainStackProps extends cdk.StackProps {
 }
 
 export class MainStack extends cdk.Stack {
+  public readonly clusterName: string;
+  public readonly serviceName: string;
+
   constructor(scope: Construct, id: string, props: MainStackProps) {
     super(scope, id, props);
+
+    // Application Signals Service Role
+    new application_signals.CfnDiscovery(
+      this,
+      "ApplicationSignalsServiceRole",
+      {}
+    );
 
     // VPC
     const vpc = new ec2.Vpc(this, "Vpc", {
@@ -126,64 +136,6 @@ export class MainStack extends cdk.Stack {
       }
     );
 
-    // SLO for getUserAvailability - 可用性監視
-    new application_signals.CfnServiceLevelObjective(
-      this,
-      "GetUserAvailabilitySLO",
-      {
-        name: "getUserAvailability",
-        requestBasedSli: {
-          requestBasedSliMetric: {
-            keyAttributes: {
-              Environment: `ecs:${cluster.clusterName}`,
-              Name: "sample-ecs-app",
-              Type: "Service",
-            },
-            operationName: "GET /users",
-            metricType: "AVAILABILITY",
-          },
-        },
-        goal: {
-          attainmentGoal: 99.9,
-          warningThreshold: 60.0,
-          interval: {
-            rollingInterval: {
-              durationUnit: "DAY",
-              duration: 1,
-            },
-          },
-        },
-      }
-    );
-
-    // SLO for getUserLatency - レイテンシ監視
-    new application_signals.CfnServiceLevelObjective(this, "GetUserLatency", {
-      name: "getUserLatency",
-      requestBasedSli: {
-        requestBasedSliMetric: {
-          keyAttributes: {
-            Environment: `ecs:${cluster.clusterName}`,
-            Name: "sample-ecs-app",
-            Type: "Service",
-          },
-          operationName: "GET /users",
-          metricType: "LATENCY",
-        },
-        comparisonOperator: "LessThan",
-        metricThreshold: 300,
-      },
-      goal: {
-        attainmentGoal: 99.9,
-        warningThreshold: 60.0,
-        interval: {
-          rollingInterval: {
-            durationUnit: "DAY",
-            duration: 1,
-          },
-        },
-      },
-    });
-
     // Security Group for App
     const appSg = new ec2.SecurityGroup(this, "AppSg", {
       vpc: vpc,
@@ -272,5 +224,9 @@ export class MainStack extends cdk.Stack {
       }
     );
     auroraCluster.connections.allowFrom(appSg, ec2.Port.tcp(5432));
+
+    // Set public properties
+    this.clusterName = cluster.clusterName;
+    this.serviceName = service.serviceName;
   }
 }
