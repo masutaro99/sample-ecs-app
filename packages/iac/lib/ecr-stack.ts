@@ -7,14 +7,18 @@ export interface EcrStackProps extends cdk.StackProps {
 }
 
 export class EcrStack extends cdk.Stack {
+  public readonly repository: ecr.IRepository;
+
   constructor(scope: Construct, id: string, props: EcrStackProps) {
     super(scope, id);
 
     // ECR Repository
-    new ecr.Repository(this, props.repositoryName, {
+    const repository = new ecr.Repository(this, props.repositoryName, {
       repositoryName: `${props.repositoryName}`,
       imageScanOnPush: true,
       imageTagMutability: ecr.TagMutability.IMMUTABLE,
     });
+
+    this.repository = repository;
   }
 }

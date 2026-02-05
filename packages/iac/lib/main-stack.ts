@@ -12,7 +12,7 @@ import * as application_signals_alpha from "@aws-cdk/aws-applicationsignals-alph
 import * as application_signals from "aws-cdk-lib/aws-applicationsignals";
 
 export interface MainStackProps extends cdk.StackProps {
-  repositoryName: string;
+  repository: ecr.IRepository;
   imageTag: string;
 }
 
@@ -90,11 +90,7 @@ export class MainStack extends cdk.Stack {
     );
     const ecsContainer = taskDefinition.addContainer("App", {
       image: ecs.ContainerImage.fromEcrRepository(
-        ecr.Repository.fromRepositoryName(
-          this,
-          "AppRepository",
-          props.repositoryName
-        ),
+        props.repository,
         props.imageTag
       ),
       essential: true,
@@ -107,7 +103,7 @@ export class MainStack extends cdk.Stack {
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "ecs",
         logGroup: new logs.LogGroup(this, "AppLogGroup", {
-          logGroupName: `/ecs/${props.repositoryName}`,
+          logGroupName: `/ecs/${props.repository.repositoryName}`,
           retention: logs.RetentionDays.ONE_WEEK,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
