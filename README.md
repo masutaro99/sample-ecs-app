@@ -21,8 +21,8 @@ CloudWatch Applications Signals に依る SLI/SLO 管理も行う。
 `packages/iac` ディレクトリで下記を実行する。
 
 ```
-npm install
-npx cdk deploy EcrStack
+pnpm install
+pnpm dlx cdk deploy EcrStack
 ```
 
 ### コンテナイメージのビルド
@@ -47,7 +47,7 @@ docker build \
 
 ```
 cd packages/server
-npx cdk deploy MainStack
+pnpm dlx cdk deploy MainStack
 ```
 
 ### DB 関連
@@ -79,5 +79,5 @@ INSERT INTO users (name, email) VALUES
 `packages/iac` ディレクトリで下記を実行する。
 
 ```
-npx cdk deploy MonitoringStack
+pnpm dlx cdk deploy MonitoringStack
 ```
