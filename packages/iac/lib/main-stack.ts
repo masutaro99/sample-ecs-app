@@ -143,6 +143,7 @@ export class MainStack extends cdk.Stack {
       taskDefinition: taskDefinition,
       platformVersion: ecs.FargatePlatformVersion.VERSION1_4,
       desiredCount: 1,
+      minHealthyPercent: 100,
       assignPublicIp: false,
       securityGroups: [appSg],
       vpcSubnets: vpc.selectSubnets({
