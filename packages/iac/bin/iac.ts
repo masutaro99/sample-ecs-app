@@ -15,4 +15,5 @@ const mainStack = new MainStack(app, "MainStack", {
 new MonitoringStack(app, "MonitoringStack", {
   clusterName: mainStack.clusterName,
   serviceName: mainStack.serviceName,
+  alarmNotificationEmail: "example@example.com",
 });
