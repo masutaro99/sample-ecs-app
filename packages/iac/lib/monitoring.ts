@@ -3,13 +3,29 @@ import * as application_signals from "aws-cdk-lib/aws-applicationsignals";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 import * as cloudwatch_actions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as sns from "aws-cdk-lib/aws-sns";
-import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import * as chatbot from "aws-cdk-lib/aws-chatbot";
+import * as iam from "aws-cdk-lib/aws-iam";
 import type { Construct } from "constructs";
 
 const BURN_RATE_COMPOSITE_CONFIGS = [
-  { longWindowMin: 60, shortWindowMin: 5, threshold: 13.44 },
-  { longWindowMin: 360, shortWindowMin: 30, threshold: 5.6 },
-  { longWindowMin: 4320, shortWindowMin: 360, threshold: 0.933 },
+  {
+    longWindowMin: 60,
+    shortWindowMin: 5,
+    threshold: 13.44,
+    notification: "page",
+  },
+  {
+    longWindowMin: 360,
+    shortWindowMin: 30,
+    threshold: 5.6,
+    notification: "page",
+  },
+  {
+    longWindowMin: 4320,
+    shortWindowMin: 360,
+    threshold: 0.933,
+    notification: "ticket",
+  },
 ] as const;
 
 // Extract unique window sizes from composite configs
@@ -30,7 +46,8 @@ const burnRateConfigurations = BURN_RATE_WINDOW_MINUTES.map((min) => ({
 export interface MonitoringStackProps extends cdk.StackProps {
   clusterName: string;
   serviceName: string;
-  alarmNotificationEmail?: string;
+  slackWorkspaceId?: string;
+  slackChannelId?: string;
 }
 
 export class MonitoringStack extends cdk.Stack {
@@ -41,10 +58,25 @@ export class MonitoringStack extends cdk.Stack {
     const alarmTopic = new sns.Topic(this, "BurnRateAlarmTopic", {
       displayName: "SLO Burn Rate Composite Alarms",
     });
-    if (props.alarmNotificationEmail) {
-      alarmTopic.addSubscription(
-        new subscriptions.EmailSubscription(props.alarmNotificationEmail),
-      );
+
+    // Slack Channel Configuration for alarm notifications
+    if (props.slackWorkspaceId && props.slackChannelId) {
+      const slackChannelRole = new iam.Role(this, "SlackChannelRole", {
+        assumedBy: new iam.ServicePrincipal("chatbot.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "CloudWatchReadOnlyAccess",
+          ),
+        ],
+      });
+
+      new chatbot.SlackChannelConfiguration(this, "SlackChannel", {
+        slackChannelConfigurationName: "slo-alerts",
+        slackWorkspaceId: props.slackWorkspaceId,
+        slackChannelId: props.slackChannelId,
+        notificationTopics: [alarmTopic],
+        role: slackChannelRole,
+      });
     }
 
     // SLO for getUserAvailability - Availability Monitoring
@@ -109,7 +141,7 @@ export class MonitoringStack extends cdk.Stack {
     }
 
     // Create CompositeAlarms referencing alarms from Map
-    BURN_RATE_COMPOSITE_CONFIGS.forEach((config, i) => {
+    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
       const longAlarm = availabilityAlarmMap.get(config.longWindowMin)!;
       const shortAlarm = availabilityAlarmMap.get(config.shortWindowMin)!;
 
@@ -131,7 +163,19 @@ export class MonitoringStack extends cdk.Stack {
           alarmDescription: `SLO availability burn rate composite: ${config.shortWindowMin}m & ${config.longWindowMin}m (threshold: ${config.threshold})`,
         },
       );
-      composite.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+
+      // page: Slack + OpsCenter, ticket: OpsCenter only
+      if (config.notification === "page") {
+        const snsAction = new cloudwatch_actions.SnsAction(alarmTopic);
+        composite.addAlarmAction(snsAction);
+        composite.addOkAction(snsAction);
+      }
+      // Always create OpsItem (severity 3 = Medium)
+      composite.addAlarmAction({
+        bind: () => ({
+          alarmActionArn: `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:opsitem:3`,
+        }),
+      });
     });
 
     // SLO for getUserLatency - Latency Monitoring
@@ -193,7 +237,7 @@ export class MonitoringStack extends cdk.Stack {
     }
 
     // Create CompositeAlarms referencing alarms from Map
-    BURN_RATE_COMPOSITE_CONFIGS.forEach((config, i) => {
+    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
       const longAlarm = latencyAlarmMap.get(config.longWindowMin)!;
       const shortAlarm = latencyAlarmMap.get(config.shortWindowMin)!;
 
@@ -215,7 +259,19 @@ export class MonitoringStack extends cdk.Stack {
           alarmDescription: `SLO latency burn rate composite: ${config.shortWindowMin}m & ${config.longWindowMin}m (threshold: ${config.threshold})`,
         },
       );
-      composite.addAlarmAction(new cloudwatch_actions.SnsAction(alarmTopic));
+
+      // page: Slack + OpsCenter, ticket: OpsCenter only
+      if (config.notification === "page") {
+        const snsAction = new cloudwatch_actions.SnsAction(alarmTopic);
+        composite.addAlarmAction(snsAction);
+        composite.addOkAction(snsAction);
+      }
+      // Always create OpsItem (severity 3 = Medium)
+      composite.addAlarmAction({
+        bind: () => ({
+          alarmActionArn: `arn:aws:ssm:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:opsitem:3`,
+        }),
+      });
     });
   }
 }
