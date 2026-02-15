@@ -28,20 +28,15 @@ const BURN_RATE_COMPOSITE_CONFIGS = [
   },
 ] as const;
 
-// Extract unique window sizes from composite configs
-const BURN_RATE_WINDOW_MINUTES = [
+// Generate burnRateConfigurations for SLO from unique window sizes
+const burnRateConfigurations = [
   ...new Set(
     BURN_RATE_COMPOSITE_CONFIGS.flatMap((c) => [
       c.longWindowMin,
       c.shortWindowMin,
     ]),
   ),
-].sort((a, b) => a - b);
-
-// Generate burnRateConfigurations for SLO
-const burnRateConfigurations = BURN_RATE_WINDOW_MINUTES.map((min) => ({
-  lookBackWindowMinutes: min,
-}));
+].map((min) => ({ lookBackWindowMinutes: min }));
 
 export interface MonitoringStackProps extends cdk.StackProps {
   clusterName: string;
@@ -111,40 +106,59 @@ export class MonitoringStack extends cdk.Stack {
         },
       );
 
-    // Create alarms for each window size and store in Map
-    const availabilityAlarmMap = new Map<number, cloudwatch.Alarm>();
-    for (const minutes of BURN_RATE_WINDOW_MINUTES) {
-      const metric = new cloudwatch.Metric({
+    // Create burn rate alarms and composite alarms for each config pair
+    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
+      // Long window alarm with threshold
+      const longMetric = new cloudwatch.Metric({
         namespace: "AWS/ApplicationSignals",
         metricName: "BurnRate",
         dimensionsMap: {
           SloName: getUserAvailabilitySLO.name,
-          BurnRateWindowMinutes: String(minutes),
+          BurnRateWindowMinutes: String(config.longWindowMin),
         },
         statistic: cloudwatch.Stats.MAXIMUM,
         period: cdk.Duration.minutes(1),
       });
-      const alarm = new cloudwatch.Alarm(
+      const longAlarm = new cloudwatch.Alarm(
         this,
-        `AvailabilityBurnRate${minutes}m`,
+        `AvailabilityBurnRate${config.longWindowMin}mOver${config.threshold}`,
         {
-          alarmName: `slo-availability-burnrate-${minutes}m`,
-          metric: metric,
-          threshold: 1,
+          alarmName: `slo-availability-burnrate-${config.longWindowMin}m-over${config.threshold}`,
+          metric: longMetric,
+          threshold: config.threshold,
           evaluationPeriods: 1,
           comparisonOperator:
             cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-          alarmDescription: `SLO availability burn rate (${minutes}m window)`,
+          alarmDescription: `SLO availability burn rate (${config.longWindowMin}m window, threshold: ${config.threshold})`,
         },
       );
-      availabilityAlarmMap.set(minutes, alarm);
-    }
 
-    // Create CompositeAlarms referencing alarms from Map
-    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
-      const longAlarm = availabilityAlarmMap.get(config.longWindowMin)!;
-      const shortAlarm = availabilityAlarmMap.get(config.shortWindowMin)!;
+      // Short window alarm with threshold
+      const shortMetric = new cloudwatch.Metric({
+        namespace: "AWS/ApplicationSignals",
+        metricName: "BurnRate",
+        dimensionsMap: {
+          SloName: getUserAvailabilitySLO.name,
+          BurnRateWindowMinutes: String(config.shortWindowMin),
+        },
+        statistic: cloudwatch.Stats.MAXIMUM,
+        period: cdk.Duration.minutes(1),
+      });
+      const shortAlarm = new cloudwatch.Alarm(
+        this,
+        `AvailabilityBurnRate${config.shortWindowMin}mOver${config.threshold}`,
+        {
+          alarmName: `slo-availability-burnrate-${config.shortWindowMin}m-over${config.threshold}`,
+          metric: shortMetric,
+          threshold: config.threshold,
+          evaluationPeriods: 1,
+          comparisonOperator:
+            cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+          alarmDescription: `SLO availability burn rate (${config.shortWindowMin}m window, threshold: ${config.threshold})`,
+        },
+      );
 
+      // Composite alarm
       const composite = new cloudwatch.CompositeAlarm(
         this,
         `AvailabilityBurnRateComposite${config.shortWindowMin}m${config.longWindowMin}m`,
@@ -211,36 +225,59 @@ export class MonitoringStack extends cdk.Stack {
       },
     );
 
-    // Create alarms for each window size and store in Map
-    const latencyAlarmMap = new Map<number, cloudwatch.Alarm>();
-    for (const minutes of BURN_RATE_WINDOW_MINUTES) {
-      const metric = new cloudwatch.Metric({
+    // Create burn rate alarms and composite alarms for each config pair
+    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
+      // Long window alarm with threshold
+      const longMetric = new cloudwatch.Metric({
         namespace: "AWS/ApplicationSignals",
         metricName: "BurnRate",
         dimensionsMap: {
           SloName: getUserLatencySLO.name,
-          BurnRateWindowMinutes: String(minutes),
+          BurnRateWindowMinutes: String(config.longWindowMin),
         },
         statistic: cloudwatch.Stats.MAXIMUM,
         period: cdk.Duration.minutes(1),
       });
-      const alarm = new cloudwatch.Alarm(this, `LatencyBurnRate${minutes}m`, {
-        alarmName: `slo-latency-burnrate-${minutes}m`,
-        metric: metric,
-        threshold: 1,
-        evaluationPeriods: 1,
-        comparisonOperator:
-          cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-        alarmDescription: `SLO latency burn rate (${minutes}m window)`,
+      const longAlarm = new cloudwatch.Alarm(
+        this,
+        `LatencyBurnRate${config.longWindowMin}mOver${config.threshold}`,
+        {
+          alarmName: `slo-latency-burnrate-${config.longWindowMin}m-over${config.threshold}`,
+          metric: longMetric,
+          threshold: config.threshold,
+          evaluationPeriods: 1,
+          comparisonOperator:
+            cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+          alarmDescription: `SLO latency burn rate (${config.longWindowMin}m window, threshold: ${config.threshold})`,
+        },
+      );
+
+      // Short window alarm with threshold
+      const shortMetric = new cloudwatch.Metric({
+        namespace: "AWS/ApplicationSignals",
+        metricName: "BurnRate",
+        dimensionsMap: {
+          SloName: getUserLatencySLO.name,
+          BurnRateWindowMinutes: String(config.shortWindowMin),
+        },
+        statistic: cloudwatch.Stats.MAXIMUM,
+        period: cdk.Duration.minutes(1),
       });
-      latencyAlarmMap.set(minutes, alarm);
-    }
+      const shortAlarm = new cloudwatch.Alarm(
+        this,
+        `LatencyBurnRate${config.shortWindowMin}mOver${config.threshold}`,
+        {
+          alarmName: `slo-latency-burnrate-${config.shortWindowMin}m-over${config.threshold}`,
+          metric: shortMetric,
+          threshold: config.threshold,
+          evaluationPeriods: 1,
+          comparisonOperator:
+            cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+          alarmDescription: `SLO latency burn rate (${config.shortWindowMin}m window, threshold: ${config.threshold})`,
+        },
+      );
 
-    // Create CompositeAlarms referencing alarms from Map
-    BURN_RATE_COMPOSITE_CONFIGS.forEach((config) => {
-      const longAlarm = latencyAlarmMap.get(config.longWindowMin)!;
-      const shortAlarm = latencyAlarmMap.get(config.shortWindowMin)!;
-
+      // Composite alarm
       const composite = new cloudwatch.CompositeAlarm(
         this,
         `LatencyBurnRateComposite${config.shortWindowMin}m${config.longWindowMin}m`,
